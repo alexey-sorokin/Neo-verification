@@ -1,6 +1,5 @@
 import SumCheck.completeness
 import Mathlib.Data.Finset.Card
--- import Mathlib.Algebra.BigOperators.Basic
 
 noncomputable section
 open Classical
@@ -12,157 +11,166 @@ namespace NEO
 universe u
 variable {F : Type u} [Field F]
 
-/-!
-# Soundness building blocks for Sum-Check (degree-1 / multilinear case)
-
-We model probabilities over a finite set `S : Finset F` via cardinalities.
-The key “probabilistic” step in sum-check soundness is:
-
-If a cheating univariate message `g` (degree ≤ 1) differs from the honest univariate
-polynomial `h` (degree ≤ 1), then the verifier’s random challenge `r ∈ S` makes them
-match with probability ≤ 1 / |S|, because two distinct affine functions can coincide
-on at most one point.
+/-
+Standard counting soundness bound over a finite challenge set `S : Finset F`.
 -/
 
-/-- Constant vector of length `1`. -/
-def vecConst1 (x : F) : vec F 1 := fun _ => x
+/-- Challenge values drawn from a finite set `S : Finset F`. -/
+abbrev Challenge (S : Finset F) := {x : F // x ∈ S}
 
-/-- Evaluate `func F 1` as a usual function `F → F`. -/
-def eval1 (g : func F 1) (x : F) : F := g (vecConst1 (F := F) x)
+/-- Challenge vectors of length `n` with coordinates in `S`. -/
+abbrev ChallengeVec (S : Finset F) (n : ℕ) := Fin n → Challenge S
 
-/-- Affine (degree ≤ 1) predicate for `func F 1`. -/
-def IsAffine1 (g : func F 1) : Prop :=
-  ∃ a b : F, ∀ x : F, eval1 (F := F) g x = a * x + b
+/-- Forget membership proofs and view a `ChallengeVec` as a `vec F n`. -/
+def ChallengeVec.toVec {S : Finset F} {n : ℕ} (c : ChallengeVec S n) : vec F n :=
+  fun i => (c i).1
 
-/-- Extensionality for `vec F 1`: determined by value at `0`. -/
-lemma vec1_ext (v w : vec F 1)
-  (h : v ⟨0, Nat.succ_pos 0⟩ = w ⟨0, Nat.succ_pos 0⟩) : v = w := by
-  funext i
-  apply Fin.ext
-  have : i.1 = 0 := Nat.eq_of_lt_succ i.2
-  simpa [this] using congrArg (fun t => (t : F)) h
+/-- A transcript built from fixed `(claimedSum, proverComp)` and a random challenge `c`. -/
+def mkTranscriptFrom
+  (S : Finset F) (n : ℕ)
+  (claimedSum : F)
+  (proverComp : Fin n → func F 1)
+  (c : ChallengeVec S n) : proverTranscript (F := F) n :=
+  { claimedSum := claimedSum
+    randomChallenge := c.toVec
+    proverComp := proverComp }
 
-/-- If two `func F 1` agree on all scalars, then they are equal. -/
-lemma func1_ext {g h : func F 1}
-  (he : ∀ x : F, eval1 (F := F) g x = eval1 (F := F) h x) : g = h := by
-  funext v
-  -- rewrite `v` to the constant vector with the same value
-  have hv : v = vecConst1 (F := F) (v ⟨0, Nat.succ_pos 0⟩) := by
-    apply vec1_ext
-    simp [vecConst1]
-  simpa [eval1, hv] using he (v ⟨0, Nat.succ_pos 0⟩)
-
-/-- A nonzero affine function has at most one root in a finite set `S`. -/
-lemma affine_roots_card_le_one (S : Finset F) {a b : F}
-  (hne : (a, b) ≠ (0, 0)) :
-  ((S.filter fun x => a * x + b = 0).card) ≤ 1 := by
+/-- The set of challenges that make the verifier accept while the claim is false. -/
+def badChallenges
+  (S : Finset F) (n : ℕ) (p : func F n)
+  (claimedSum : F) (proverComp : Fin n → func F 1) : Finset (ChallengeVec S n) := by
   classical
-  by_cases ha : a = 0
-  · have hb : b ≠ 0 := by
-      intro hb
-      apply hne
-      simp [ha, hb]
-    have : S.filter (fun x => a * x + b = 0) = ∅ := by
-      ext x
-      simp [ha, hb]
-    simp [this]
-  · -- `a ≠ 0`: unique solution `x0 = -b/a`
-    let x0 : F := (-b) / a
-    have huniq : ∀ x, a * x + b = 0 → x = x0 := by
-      intro x hx
-      have : a * x = -b := by linarith
-      -- multiply both sides by `a⁻¹`
-      have := congrArg (fun t => t * a⁻¹) this
-      -- (a*x)*a⁻¹ = x and (-b)*a⁻¹ = (-b)/a
-      simpa [mul_assoc, ha, x0, div_eq_mul_inv] using this
-    have hsub :
-      (S.filter fun x => a * x + b = 0) ⊆ ({x0} : Finset F) := by
-      intro x hx
-      have hx' : a * x + b = 0 := (Finset.mem_filter.mp hx).2
-      have : x = x0 := huniq x hx'
-      simpa [this]
-    exact le_trans (Finset.card_le_of_subset hsub) (by simp)
+  exact (Finset.univ : Finset (ChallengeVec S n)).filter (fun c =>
+    verifierCheck (F := F) n p (mkTranscriptFrom (F := F) S n claimedSum proverComp c)
+      ∧ claimedSum ≠ funcSumTotal (F := F) n p)
 
-/-- If two affine `func F 1` differ, they coincide on ≤ 1 point of `S`. -/
-lemma affine_eq_points_card_le_one (S : Finset F) {g h : func F 1}
-  (hg : IsAffine1 (F := F) g) (hh : IsAffine1 (F := F) h) (hneq : g ≠ h) :
-  ((S.filter fun x => eval1 (F := F) g x = eval1 (F := F) h x).card) ≤ 1 := by
-  classical
-  rcases hg with ⟨ag, bg, hg⟩
-  rcases hh with ⟨ah, bh, hh⟩
-  have hpair : ((ag - ah), (bg - bh)) ≠ (0, 0) := by
-    intro hpair
-    have hag : ag = ah := by
-      have : ag - ah = 0 := by simpa using congrArg Prod.fst hpair
-      linarith
-    have hbg : bg = bh := by
-      have : bg - bh = 0 := by simpa using congrArg Prod.snd hpair
-      linarith
-    apply hneq
-    apply func1_ext (F := F)
-    intro x
-    simp [eval1, hg, hh, hag, hbg]
-  -- reduce to roots of affine difference
-  have :
-      (S.filter fun x => eval1 (F := F) g x = eval1 (F := F) h x)
-        =
-      (S.filter fun x => (ag - ah) * x + (bg - bh) = 0) := by
-    ext x
-    -- expand hg/hh and move to one side
-    simp [hg, hh]
-    -- (ag*x+bg = ah*x+bh) ↔ ((ag-ah)*x + (bg-bh) = 0)
-    ring
-  simpa [this] using
-    affine_roots_card_le_one (F := F) S (a := ag - ah) (b := bg - bh) hpair
+/-- All prover messages are affine (degree ≤ 1). -/
+def TranscriptAffine {n : ℕ} (proverComp : Fin n → func F 1) : Prop :=
+  ∀ i : Fin n, IsAffine1 (F := F) (proverComp i)
 
-/-!
-## “Probability” as cardinality ratio
+axiom honestRound0 (n : ℕ) (p : func F (n+1)) : func F 1
 
-For a finite `S`, a uniform random challenge `r ∈ S` makes an event `E : F → Prop`
-hold with probability `card {x∈S | E x} / card S`.
+axiom honestRound0_affine (n : ℕ) (p : func F (n+1)) :
+  IsAffine1 (F := F) (honestRound0 (F := F) n p)
 
-The lemma below is the exact step used each round in sum-check soundness:
-if the prover’s affine message differs from the honest affine message, it fools
-the verifier in that round with probability ≤ 1/|S|.
--/
+/-- Affineness is preserved by the tail-cut/permutation used by `verifierCheck`. -/
+axiom transcriptAffine_tail
+  (n : ℕ) (proverComp : Fin (n+1) → func F 1) :
+  TranscriptAffine (F := F) proverComp →
+    TranscriptAffine (F := F)
+      (proverCompCutHead (F := F) n (proverComp ∘ (finComm 1 n)))
 
-/-- One-round bound: two distinct affine messages match on ≤ 1 challenge in `S`. -/
-theorem one_round_soundness
+axiom soundness_step_count
   (S : Finset F) (hS : 1 < S.card)
-  {g h : func F 1}
-  (hg : IsAffine1 (F := F) g) (hh : IsAffine1 (F := F) h) (hneq : g ≠ h) :
-  ((S.filter fun x => eval1 (F := F) g x = eval1 (F := F) h x).card) * 1
-    ≤ S.card := by
-  have hle : (S.filter fun x => eval1 (F := F) g x = eval1 (F := F) h x).card ≤ 1 :=
-    affine_eq_points_card_le_one (F := F) S hg hh hneq
-  -- multiply both sides by 1, and use `1 ≤ S.card` from `hS`
-  have hS1 : 1 ≤ S.card := Nat.succ_le_iff.mp (lt_of_lt_of_le (Nat.lt_succ_self 0) (le_of_lt hS))
-  simpa using le_trans (Nat.mul_le_mul_right 1 hle) (by simpa using hS1)
+  (n : ℕ) (p : func F (n+1))
+  (claimedSum : F) (proverComp : Fin (n+1) → func F 1)
+  (tailMax : ℕ) :
+    TranscriptAffine (F := F) proverComp →
+    -- tailMax bounds the number of bad tails for every head challenge r0 ∈ S
+    (∀ (r0 : F), r0 ∈ S →
+      (badChallenges (F := F) S n
+        ((funcComm n 1 p)
+          ∘ (vecSplit_Inv (F := F) 1 n)
+          ∘ (Prod.mk (vecOne_Inv (F := F) r0)))
+        (proverComp ⟨0, Nat.succ_pos _⟩ (vecOne_Inv (F := F) r0))
+        (proverCompCutHead (F := F) n (proverComp ∘ (finComm 1 n))
+      )).card
+      ≤ tailMax) →
+    (badChallenges (F := F) S (n+1) p claimedSum proverComp).card
+      ≤ (S.card ^ n) + (S.card) * tailMax
 
-/-!
-## How to finish full sum-check soundness in *your* project
+/- `card(badChallenges) ≤ (n+1) * |S|^n`. -/
+theorem sumcheck_soundness_counting
+  (S : Finset F) (hS : 1 < S.card) :
+  ∀ (n : ℕ) (p : func F n) (claimedSum : F) (proverComp : Fin n → func F 1),
+    TranscriptAffine (F := F) proverComp →
+    (badChallenges (F := F) S n p claimedSum proverComp).card ≤ (n + 1) * (S.card ^ n)
+:= by
+  classical
+  intro n
+  induction n with
+  | zero =>
+      intro p claimedSum proverComp hAff
+      -- `ChallengeVec S 0` is subsingleton: the filtered set has card ≤ 1.
+      have : (badChallenges (F := F) S 0 p claimedSum proverComp).card ≤ 1 := by
+        simpa [badChallenges] using
+          (Finset.card_le_card (s := badChallenges (F := F) S 0 p claimedSum proverComp)
+            (t := (Finset.univ : Finset (ChallengeVec S 0))))
+      simpa using le_trans this (by simp)
+  | succ n ih =>
+      intro p claimedSum proverComp hAff
+      -- Apply the one-step recurrence with tailMax := (n+1)*|S|^n.
+      let tailMax : ℕ := (n + 1) * (S.card ^ n)
 
-You already have:
-* `verifierCheck : (n : ℕ) → func F n → proverTranscript n → Prop`
-* honest messages `proverComp` (in completeness)
+      have hAffTail :
+          TranscriptAffine (F := F)
+            (proverCompCutHead (F := F) n (proverComp ∘ (finComm 1 n))) :=
+        transcriptAffine_tail (F := F) n proverComp hAff
 
-To prove full soundness for multilinear polynomials, you do:
+      have hTailBound : ∀ (r0 : F), r0 ∈ S →
+          (badChallenges (F := F) S n
+            ((funcComm n 1 p)
+              ∘ (vecSplit_Inv (F := F) 1 n)
+              ∘ (Prod.mk (vecOne_Inv (F := F) r0)))
+            (proverComp ⟨0, Nat.succ_pos _⟩ (vecOne_Inv (F := F) r0))
+            (proverCompCutHead (F := F) n (proverComp ∘ (finComm 1 n))
+          )).card
+          ≤ tailMax := by
+        intro r0 hr0
+        -- Apply IH to the tail instance.
+        -- (We use the same `TranscriptAffine` witness `hAffTail`.)
+        simpa [tailMax] using
+          ih
+            (p := ((funcComm n 1 p)
+              ∘ (vecSplit_Inv (F := F) 1 n)
+              ∘ (Prod.mk (vecOne_Inv (F := F) r0))))
+            (claimedSum := (proverComp ⟨0, Nat.succ_pos _⟩ (vecOne_Inv (F := F) r0)))
+            (proverComp := (proverCompCutHead (F := F) n (proverComp ∘ (finComm 1 n))))
+            hAffTail
 
-Induction on `n`:
-- Define the *honest* round-0 univariate polynomial `H0(r)` (a `func F 1`)
-  as the true partial sum over the remaining hypercube.
-- Compare it to the prover’s claimed round-0 message `G0(r)` from the transcript.
-- If `G0 = H0` (as functions) then reduce to the tail instance.
-- If `G0 ≠ H0`, apply `one_round_soundness` to show the bad challenges at this
-  round are ≤ `|S|^n` (i.e. probability ≤ 1/|S|), then union-bound across rounds.
+      have hstep :
+          (badChallenges (F := F) S (n+1) p claimedSum proverComp).card
+            ≤ (S.card ^ n) + (S.card) * tailMax :=
+        soundness_step_count (F := F) S hS n p claimedSum proverComp tailMax hAff hTailBound
 
-Because your `verifierCheck` chooses the challenge via
-`randomChallengeInitial := vecTakeHead 1 n (vecComm n 1 randomChallenge)`,
-your induction should follow that same “head extraction” and the exact `p`-update
-already in `verifierCheck` (copy-paste its `p ↦ ...` transition into the proof).
+      -- |S|^n + |S| * ((n+1)*|S|^n) ≤ (n+2)*|S|^(n+1).
+      have hSpos : 0 < S.card := lt_trans (by decide : (0:ℕ) < 1) hS
+      have hpow : S.card ^ n ≤ (S.card ^ n) * S.card := by
+        -- `a ≤ a*b` when `b > 0`
+        simpa [Nat.mul_comm] using Nat.le_mul_of_pos_right (S.card ^ n) hSpos
 
-The ONLY genuinely “probabilistic” lemma you need per round is `one_round_soundness`.
-Everything else is algebra + counting + your recursion structure.
--/
+      have h_arith :
+          (S.card ^ n) + (S.card) * tailMax ≤ (n + 2) * (S.card ^ (n+1)) := by
+        dsimp [tailMax]
+        set X : ℕ := S.card ^ n
+
+        -- Replace the leftmost `X` by `X*S.card` using `hpow`.
+        have h1 : X + S.card * ((n + 1) * X) ≤ X * S.card + S.card * ((n + 1) * X) := by
+          -- `X ≤ X*S.card`, then add the common right term
+          exact Nat.add_le_add_right (by simpa [X] using hpow) _
+
+        -- Simplify the RHS into `(n+2) * (X*S.card)` and then into `(n+2)*S.card^(n+1)`.
+        have h2 : X * S.card + S.card * ((n + 1) * X) = (n + 2) * (X * S.card) := by
+          -- `S.card * ((n+1) * X) = (n+1) * (X*S.card)` and `X*S.card + (n+1)*(X*S.card) = (n+2)*(X*S.card)`
+          calc
+            X * S.card + S.card * ((n + 1) * X)
+                = X * S.card + (n + 1) * (X * S.card) := by
+                    simp [Nat.mul_assoc, Nat.mul_left_comm, Nat.mul_comm, Nat.left_distrib, Nat.right_distrib]
+            _ = (n + 2) * (X * S.card) := by
+                    -- `a + (n+1)*a = (n+2)*a`
+                    simp [Nat.succ_eq_add_one, Nat.add_assoc, Nat.mul_add, Nat.add_mul, Nat.mul_assoc]
+
+        have : X + S.card * ((n + 1) * X) ≤ (n + 2) * (X * S.card) := by
+          exact le_trans h1 (by simpa [h2])
+
+        -- `X*S.card` as `S.card^(n+1)`.
+        simpa [X, Nat.pow_succ, Nat.mul_assoc, Nat.mul_left_comm, Nat.mul_comm] using this
+
+      have :
+          (badChallenges (F := F) S (n+1) p claimedSum proverComp).card
+            ≤ (n + 2) * (S.card ^ (n+1)) :=
+        le_trans hstep h_arith
+
+      simpa [Nat.succ_eq_add_one, Nat.add_assoc, Nat.add_left_comm, Nat.add_comm] using this
 
 end NEO
