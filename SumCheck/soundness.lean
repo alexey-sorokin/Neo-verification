@@ -26,7 +26,7 @@ def ChallengeVec.toVec {S : Finset F} {n : ℕ} (c : ChallengeVec S n) : vec F n
   fun i => (c i).1
 
 /-- A transcript built from fixed `(claimedSum, proverComp)` and a random challenge `c`. -/
-def mkTranscriptFrom
+def makeTranscriptFrom
   (S : Finset F) (n : ℕ)
   (claimedSum : F)
   (proverComp : Fin n → func F 1)
@@ -41,7 +41,7 @@ def badChallenges
   (claimedSum : F) (proverComp : Fin n → func F 1) : Finset (ChallengeVec S n) := by
   classical
   exact (Finset.univ : Finset (ChallengeVec S n)).filter (fun c =>
-    verifierCheck (F := F) n p (mkTranscriptFrom (F := F) S n claimedSum proverComp c)
+    verifierCheck (F := F) n p (makeTranscriptFrom (F := F) S n claimedSum proverComp c)
       ∧ claimedSum ≠ funcSumTotal (F := F) n p)
 
 /-- All prover messages are affine (degree ≤ 1). -/
