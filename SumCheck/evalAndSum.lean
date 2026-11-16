@@ -162,7 +162,7 @@ theorem funcSumTail_is_funcSumTail_funcId_X_Comm (a b c : ℕ) :
   have h2 := (hypercubeSumCommReindex (F := F) (a := c) (b := b) (g := G))
   -- `this` says: ∑ x : HyperCube (c+b), G (x ∘ finComm b c) = ∑ y : HyperCube (b+c), G y
   -- so we want its symmetry
-  simpa [G, Function.comp] using h2.symm
+  simpa [G, Function.comp, hypercubeVecComm] using h2.symm
 
 @[simp]
 theorem funcSumTail_is_funcSumTail_funcId_X_RightCancell
@@ -239,7 +239,7 @@ theorem funcSumTail_funcSumTail_is_funcSumTail_funcAssoc (a b c : ℕ) :
           ⟨vecSplit_Inv (F := F) a b
               ⟨va, hypercubeVec (F := F) b (e x).1⟩,
            hypercubeVec (F := F) c (e x).2⟩ := by
-    simpa [vecId_X_App, vecApp_X_Id, vecProdAssoc_Inv] using
+    exact
       congrArg
       (fun f =>
         f ⟨va, hypercubeVec (F := F) b (e x).1, hypercubeVec (F := F) c (e x).2⟩)

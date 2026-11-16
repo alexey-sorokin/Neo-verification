@@ -10,7 +10,7 @@ namespace NEO
 universe u
 variable {F : Type u} [Field F]
 
-def func (F : Type u) [Field F] (n : ℕ) : Type u :=
+abbrev func (F : Type u) [Field F] (n : ℕ) : Type u :=
   vec F n → F
 
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

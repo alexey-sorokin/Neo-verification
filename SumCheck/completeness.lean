@@ -237,7 +237,11 @@ theorem funcSumCheckCompleteness {n : ℕ} (p : func F n) (r : vec F n) :
                         =
                       hypercubeVec (F := F) n xn j
                       := by
-                      simp [finAddToFinSum, finCast, Sum.elim, hypercubeVec, Fin.addCases]
+                      have hj : finCast n (0 + n) (by simp) j = Fin.natAdd 0 j :=
+                        Fin.ext (by simp [finCast])
+                      rw [hj]
+                      simp only [finAddToFinSum, Fin.addCases_right]
+                      simp [Sum.elim, hypercubeVec]
                     simp [h0]
 
               simp [h_claimedSum_arg]
@@ -681,7 +685,7 @@ theorem funcSumCheckCompleteness {n : ℕ} (p : func F n) (r : vec F n) :
                           exact Nat.pred_lt_pred hneq0 hlt
 
                         -- rewrite `Nat.pred (x+1)` and `Nat.pred val` into subtraction form
-                        simpa [Nat.pred, Nat.succ_eq_add_one] using this
+                        omega
                     ⟩
 
                   have hcast : Fin.cast h_arith3 i = Fin.natAdd 1 ix

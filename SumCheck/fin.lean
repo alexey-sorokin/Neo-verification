@@ -8,7 +8,7 @@ namespace NEO
 universe u
 variable {F : Type u} [Field F]
 
-def finSum (a b : ℕ) := Fin a ⊕ Fin b
+abbrev finSum (a b : ℕ) := Fin a ⊕ Fin b
 
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

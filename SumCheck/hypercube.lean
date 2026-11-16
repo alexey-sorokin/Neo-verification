@@ -11,7 +11,7 @@ namespace NEO
 universe u
 variable {F : Type u} [Field F]
 
-def HyperCube (n : ℕ) := Fin n → Fin 2
+abbrev HyperCube (n : ℕ) := Fin n → Fin 2
 
 noncomputable instance (n : ℕ) : Fintype (HyperCube n) := by
   classical
@@ -72,7 +72,7 @@ noncomputable instance hyperCube0Uniqueness : Unique (HyperCube 0) := by
     exact i.elim0
 
 /-- Split a hypercube on `a+b` coordinates into the first `a` and last `b`. -/
-instance hypercubeSum_iso_hypercube_X_hypercube
+def hypercubeSum_iso_hypercube_X_hypercube
   (a b : ℕ) :
   HyperCube (a + b) ≃ HyperCube a × HyperCube b :=
 by
@@ -97,10 +97,8 @@ theorem hypercubeVecCast_bijective (n1 n2 : ℕ) (h : n1 = n2) :
     Function.Bijective (hypercubeVecCast n1 n2 h) := by
   constructor
   · intro x y hxy
-    unfold hypercubeVecCast at hxy
-    funext i
-    have h0 := congrArg (fun f => f (finCast n1 n2 h i)) hxy
-    simpa [Function.comp] using h0
+    subst h
+    exact hxy
   · intro y
     refine ⟨hypercubeVecCast n2 n1 h.symm y, ?_⟩
     unfold hypercubeVecCast
@@ -140,9 +138,8 @@ theorem hypercubeVecComm_bijective (a b : ℕ) :
   := by
   constructor
   · -- injective
-    intro x y hxy
-    have := congrArg (hypercubeVecComm b a) hxy
-    simpa [Function.comp] using this
+    exact Function.LeftInverse.injective (g := hypercubeVecComm b a)
+      (fun x => congrFun (hypercubeVecComm_involutive a b) x)
   · -- surjective
     intro y
     refine ⟨hypercubeVecComm b a y, ?_⟩
@@ -155,9 +152,8 @@ theorem hypercubeVecRightCancell_bijective (a b : ℕ) :
   := by
   constructor
   · -- injective
-    intro x y hxy
-    have := congrArg (hypercubeVecRightCancell_Inv a b) hxy
-    simpa [Function.comp] using this
+    exact Function.LeftInverse.injective (g := hypercubeVecRightCancell_Inv a b)
+      (fun x => congrFun (hypercubeVecRightCancell_Inv_hypercubeVecRightCancell_is_id a b) x)
   · -- surjective
     intro y
     refine ⟨hypercubeVecRightCancell_Inv a b y, ?_⟩
@@ -170,9 +166,8 @@ theorem hypercubeVecRightSubtr_bijective (a b c : ℕ) :
   := by
   constructor
   · -- injective
-    intro x y hxy
-    have := congrArg (hypercubeVecRightSubtr_Inv a b c) hxy
-    simpa [Function.comp] using this
+    exact Function.LeftInverse.injective (g := hypercubeVecRightSubtr_Inv a b c)
+      (fun x => congrFun (hypercubeVecRightSubtr_Inv_hypercubeVecRightSubtr_is_id a b c) x)
   · -- surjective
     intro y
     refine ⟨hypercubeVecRightSubtr_Inv a b c y, ?_⟩

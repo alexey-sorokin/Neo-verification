@@ -12,18 +12,18 @@ variable {F : Type u} [Field F]
 def diag {α : Type u} : α → α × α :=
   fun x => ⟨x, x⟩
 
-def vec (F : Type u) [Field F] (n : ℕ) : Type u :=
+abbrev vec (F : Type u) [Field F] (n : ℕ) : Type u :=
   Fin n → F
 
-def vecSum (F : Type u) [Field F] (a b : ℕ) : Type u :=
+abbrev vecSum (F : Type u) [Field F] (a b : ℕ) : Type u :=
   (Fin a ⊕ Fin b) → F
 
 -- (a ⊕ (b ⊕ c)) → F
-def vecSum3R (F : Type u) [Field F] (a b c : ℕ) : Type u :=
+abbrev vecSum3R (F : Type u) [Field F] (a b c : ℕ) : Type u :=
   (Fin a ⊕ (Fin b ⊕ Fin c)) → F
 
 -- ((a ⊕ b) ⊕ c) → F
-def vecSum3L (F : Type u) [Field F] (a b c : ℕ) : Type u :=
+abbrev vecSum3L (F : Type u) [Field F] (a b c : ℕ) : Type u :=
   ((Fin a ⊕ Fin b) ⊕ Fin c) → F
 
 def fin2ToF : vec F 2
@@ -1309,8 +1309,13 @@ theorem vecSplit_Inv_vecId_P_CastToPrefixOneSuffix_is_vecId_X_CastToPrefixOneSuf
           finCast, Function.comp, Sum.elim]
   · simp
       [finAddToFinSum, finId_X_CastToPrefixOneSuffix, finCastToPrefixOneSuffix,
-          finCast, Function.comp, Sum.elim, Fin.addCases]
-    simp [Fin.subNat, Fin.natAdd, Fin.cast]
+          finCast, Function.comp, Sum.elim]
+    -- push `Fin.cast` inside `Fin.natAdd`, so that `Fin.addCases_right` applies
+    rw [show ∀ h : a + b = a + (↑i + 1 + (b - (↑i + 1))),
+        Fin.cast h (Fin.natAdd a jb)
+          = Fin.natAdd a (Fin.cast (by have := i.isLt; omega) jb) from
+        fun _ => Fin.ext (by simp)]
+    simp
 
 
 
