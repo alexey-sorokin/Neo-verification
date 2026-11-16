@@ -1,6 +1,9 @@
 name = "NEO"
 version = "0.1.0"
-defaultTargets = ["SumCheck", "Lookup"]
+# `lake build` (and CI) builds only the finished part.
+# Lookup and SumCheck.soundness are work in progress: build them explicitly,
+# e.g. `lake build SumCheck.soundness`.
+defaultTargets = ["SumCheck"]
 
 [[lean_lib]]
 name = "SumCheck"
